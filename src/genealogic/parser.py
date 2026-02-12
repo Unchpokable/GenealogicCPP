@@ -46,20 +46,75 @@ def _split_base_list(raw: str) -> list[str]:
     return parts
 
 
-def _extract_base_name(segment: str) -> str | None:
-    """Extract the base class name from a segment like 'virtual public Base<T>'."""
+def _extract_template_args(template_str: str) -> list[str]:
+    """Extract plain identifiers from template arguments like '<Feature, Object>'.
+
+    Skips nested templates and non-identifier tokens (e.g. int, std::string).
+    """
+    # Strip outer < >
+    inner = template_str.strip()
+    if inner.startswith("<") and inner.endswith(">"):
+        inner = inner[1:-1]
+
+    args: list[str] = []
+    depth = 0
+    current: list[str] = []
+
+    for ch in inner:
+        if ch == "<":
+            depth += 1
+            current.append(ch)
+        elif ch == ">":
+            depth -= 1
+            current.append(ch)
+        elif ch == "," and depth == 0:
+            args.append("".join(current).strip())
+            current = []
+        else:
+            current.append(ch)
+
+    tail = "".join(current).strip()
+    if tail:
+        args.append(tail)
+
+    # Keep only plain identifiers that look like class names (start with uppercase)
+    names: list[str] = []
+    for arg in args:
+        m = re.match(r"^(\w+)$", arg.strip())
+        if m and m.group(1)[0].isupper():
+            names.append(m.group(1))
+
+    return names
+
+
+def _extract_base_names(segment: str, child_name: str) -> list[str]:
+    """Extract base class names from a segment like 'virtual public Base<T, Parent>'.
+
+    Returns the template class name itself, plus any template arguments
+    that look like class names (uppercase start), excluding the child class itself.
+    """
     tokens = segment.split()
-    # Filter out access specifiers and 'virtual'
     filtered = [t for t in tokens if t not in _ACCESS_SPECIFIERS]
     if not filtered:
-        return None
+        return []
 
-    # The remaining part is something like 'Base<T>' or 'Base'
     name_part = " ".join(filtered)
 
-    # Extract identifier before '<' (template) or take the whole word
+    # Extract the main class name (before '<')
     m = re.match(r"(\w+)", name_part)
-    return m.group(1) if m else None
+    if not m:
+        return []
+
+    names: list[str] = [m.group(1)]
+
+    # Extract template arguments as potential parents
+    tmpl_match = re.search(r"(<.+>)", name_part, re.DOTALL)
+    if tmpl_match:
+        for arg_name in _extract_template_args(tmpl_match.group(1)):
+            if arg_name != child_name and arg_name not in names:
+                names.append(arg_name)
+
+    return names
 
 
 def parse_declarations(text: str) -> list[tuple[str, str]]:
@@ -67,6 +122,9 @@ def parse_declarations(text: str) -> list[tuple[str, str]]:
 
     Returns list of (child_class, base_class) pairs.
     One declaration can yield multiple pairs (multiple inheritance).
+    Template arguments of base classes that look like class names
+    are also included as parents (e.g. StaticObjectInterface<Self, Object>
+    yields both StaticObjectInterface and Object as parents).
     """
     results: list[tuple[str, str]] = []
 
@@ -75,8 +133,7 @@ def parse_declarations(text: str) -> list[tuple[str, str]]:
         raw_bases = match.group(2)
 
         for segment in _split_base_list(raw_bases):
-            base_name = _extract_base_name(segment)
-            if base_name:
+            for base_name in _extract_base_names(segment, child_name):
                 results.append((child_name, base_name))
 
     return results
