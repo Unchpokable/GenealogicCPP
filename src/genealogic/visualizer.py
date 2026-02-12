@@ -2,15 +2,15 @@ from pathlib import Path
 
 import graphviz
 
-from .tree import TreeNode
 
-
-def render_tree(
-    root: TreeNode,
+def render_graph(
+    root_name: str,
+    nodes: set[str],
+    edges: list[tuple[str, str]],
     output_path: str,
     fmt: str = "svg",
 ) -> Path:
-    """Render the inheritance tree to an image file using Graphviz."""
+    """Render the inheritance DAG to an image file using Graphviz."""
     dot = graphviz.Digraph(
         name="InheritanceTree",
         format=fmt,
@@ -40,26 +40,21 @@ def render_tree(
         },
     )
 
-    _add_nodes(dot, root, is_root=True)
+    for name in sorted(nodes):
+        attrs = {}
+        if name == root_name:
+            attrs = {
+                "fillcolor": "#89b4fa",
+                "fontcolor": "#1e1e2e",
+                "penwidth": "2.5",
+                "color": "#74c7ec",
+            }
+        dot.node(name, name, **attrs)
+
+    for parent, child in edges:
+        dot.edge(parent, child)
 
     out = Path(output_path)
     stem = str(out.with_suffix(""))
     dot.render(stem, cleanup=True)
     return out
-
-
-def _add_nodes(dot: graphviz.Digraph, node: TreeNode, is_root: bool = False) -> None:
-    attrs = {}
-    if is_root:
-        attrs = {
-            "fillcolor": "#89b4fa",
-            "fontcolor": "#1e1e2e",
-            "penwidth": "2.5",
-            "color": "#74c7ec",
-        }
-
-    dot.node(node.name, node.name, **attrs)
-
-    for child in node.children:
-        dot.edge(node.name, child.name)
-        _add_nodes(dot, child)

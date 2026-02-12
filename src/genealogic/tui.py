@@ -54,23 +54,51 @@ def print_scan_result(total_files: int, total_pairs: int) -> None:
     )
 
 
-def print_tree_preview(root: TreeNode) -> None:
-    """Print a Rich Tree widget as a console preview."""
+def print_tree_preview(
+    root: TreeNode,
+    parents_map: dict[str, list[str]] | None = None,
+) -> None:
+    """Print a Rich Tree widget as a console preview with multi-parent annotations."""
     total = count_nodes(root)
     console.print()
     console.print(f"  [dim]Inheritance tree:[/] [bold]{total}[/] [dim]classes[/]")
     console.print()
 
     rich_tree = Tree(f"[bold cyan]{root.name}[/]", guide_style="blue")
-    _build_rich_tree(rich_tree, root)
+    _build_rich_tree(rich_tree, root, root.name, parents_map)
     console.print(rich_tree)
     console.print()
 
 
-def _build_rich_tree(rich_node: Tree, tree_node: TreeNode) -> None:
+def _format_node_label(
+    node_name: str,
+    tree_parent_name: str,
+    parents_map: dict[str, list[str]] | None,
+) -> str:
+    """Format a node label, showing extra parents if multiple inheritance."""
+    if not parents_map:
+        return f"[white]{node_name}[/]"
+
+    all_parents = parents_map.get(node_name, [])
+    extra = [p for p in all_parents if p != tree_parent_name]
+
+    if extra:
+        extra_str = ", ".join(extra)
+        return f"[white]{node_name}[/] [dim](+ {extra_str})[/]"
+
+    return f"[white]{node_name}[/]"
+
+
+def _build_rich_tree(
+    rich_node: Tree,
+    tree_node: TreeNode,
+    parent_name: str,
+    parents_map: dict[str, list[str]] | None,
+) -> None:
     for child in tree_node.children:
-        branch = rich_node.add(f"[white]{child.name}[/]")
-        _build_rich_tree(branch, child)
+        label = _format_node_label(child.name, parent_name, parents_map)
+        branch = rich_node.add(label)
+        _build_rich_tree(branch, child, child.name, parents_map)
 
 
 def print_output_info(output_path: Path) -> None:

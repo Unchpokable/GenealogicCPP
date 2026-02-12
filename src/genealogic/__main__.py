@@ -8,7 +8,12 @@ from pathlib import Path
 
 from .cli import parse_args
 from .parser import collect_headers, parse_file
-from .tree import build_children_map, build_tree
+from .tree import (
+    build_children_map,
+    build_parents_map,
+    build_tree,
+    collect_reachable_edges,
+)
 from .tui import (
     console,
     make_progress,
@@ -19,7 +24,7 @@ from .tui import (
     print_tree_preview,
     print_warning,
 )
-from .visualizer import render_tree
+from .visualizer import render_graph
 
 
 async def scan_files(
@@ -92,6 +97,7 @@ def run() -> int:
     print_scan_result(len(headers), len(all_pairs))
 
     children_map = build_children_map(all_pairs)
+    parents_map = build_parents_map(all_pairs)
 
     if args.base_class not in children_map:
         has_as_child = any(args.base_class == child for child, _ in all_pairs)
@@ -103,16 +109,20 @@ def run() -> int:
 
     with console.status("[bold blue]Building inheritance tree...", spinner="dots"):
         root = build_tree(args.base_class, children_map)
+        dag_nodes, dag_edges = collect_reachable_edges(args.base_class, children_map)
 
     if not root.children:
         print_warning(f"No classes inherit from '{args.base_class}'")
         return 0
 
-    print_tree_preview(root)
+    print_tree_preview(root, parents_map)
 
     if has_dot:
         with console.status("[bold blue]Rendering graph...", spinner="dots"):
-            output_path = render_tree(root, str(args.output), args.format)
+            output_path = render_graph(
+                args.base_class, dag_nodes, dag_edges,
+                str(args.output), args.format,
+            )
 
         print_output_info(output_path)
 
