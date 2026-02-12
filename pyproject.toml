@@ -1,0 +1,21 @@
+[project]
+name = "genealogic"
+version = "0.1.0"
+description = "C++ class inheritance tree visualizer"
+readme = "README.md"
+authors = [
+    { name = "Unchpokable", email = "Unchpokable@outlook.com" }
+]
+requires-python = ">=3.10"
+dependencies = [
+    "rich>=13.0",
+    "graphviz>=0.20",
+    "aiofiles>=24.0",
+]
+
+[project.scripts]
+genealogic = "genealogic.__main__:main"
+
+[build-system]
+requires = ["uv_build>=0.9.25,<0.10.0"]
+build-backend = "uv_build"
